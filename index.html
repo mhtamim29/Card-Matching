@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Memory Card Game</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      background: #2c3e50;
+      color: #ecf0f1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      min-height: 100vh;
+      padding: 20px;
+      margin: 0;
+    }
+
+    h1 {
+      margin-bottom: 10px;
+      font-size: 2.2rem;
+      text-align: center;
+    }
+
+    .info {
+      display: none;
+      justify-content: space-around;
+      width: 100%;
+      max-width: 600px;
+      margin-bottom: 15px;
+      flex-wrap: wrap;
+    }
+
+    .game-board {
+      display: grid;
+      gap: 10px;
+      justify-content: center;
+      width: 100%;
+      max-width: 600px;
+      margin: 20px auto;
+    }
+
+    .card {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      background: #34495e;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2rem;
+      cursor: pointer;
+      border-radius: 8px;
+      user-select: none;
+      transition: transform 0.3s, background 0.3s;
+    }
+
+    .card.flipped {
+      background: #1abc9c;
+      transform: rotateY(180deg);
+    }
+
+    .card.matched {
+      background: #27ae60;
+      cursor: default;
+    }
+
+    #message {
+      font-size: 1.3rem;
+      margin-bottom: 10px;
+      text-align: center;
+      max-width: 600px;
+    }
+
+    .highlight {
+      font-weight: bold;
+      color: #f39c12;
+      font-size: 1.5rem;
+    }
+
+    .button-group {
+      margin-top: 15px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .game-btn {
+      padding: 10px 20px;
+      background-color: #1abc9c;
+      border: none;
+      color: white;
+      font-size: 1rem;
+      border-radius: 8px;
+      cursor: pointer;
+      min-width: 120px;
+    }
+
+    .game-btn:hover {
+      background-color: #16a085;
+    }
+
+    @media (max-width: 600px) {
+      .game-board {
+        gap: 8px;
+      }
+
+      .card {
+        font-size: 1.5rem;
+      }
+
+      .info {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 5px;
+      }
+
+      h1 {
+        font-size: 1.8rem;
+      }
+
+      .highlight {
+        font-size: 1.3rem;
+      }
+
+      #message {
+        font-size: 1.2rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Memory Card Game</h1>
+  <div class="info" id="info-bar">
+    <div id="level">Level: 1</div>
+    <div id="timer">Time: 20s</div>
+    <div id="points" class="highlight">Points: 0</div>
+  </div>
+  <div id="message"></div>
+  <div class="game-board" id="board"></div>
+  <div class="button-group">
+    <button class="game-btn" id="start-btn">Start Game</button>
+    <button class="game-btn" id="exit-btn" style="display: none;">Exit Game</button>
+  </div>
+
+  <script>
+    const board = document.getElementById('board');
+    const message = document.getElementById('message');
+    const levelDisplay = document.getElementById('level');
+    const timerDisplay = document.getElementById('timer');
+    const pointsDisplay = document.getElementById('points');
+    const startBtn = document.getElementById('start-btn');
+    const exitBtn = document.getElementById('exit-btn');
+    const infoBar = document.getElementById('info-bar');
+
+    const iconSet = ['🍎','🍌','🍇','🍓','🍍','🍒','🥝','🍉','🥥','🍑','🍋','🥕','🍅','🥑','🍈','🍏','🌽','🥬','🍆','🥔'];
+    let level = 1;
+    const maxLevel = 20;
+    let points = 0;
+    let firstCard, secondCard;
+    let lockBoard = false;
+    let matchedCount = 0;
+    let timer;
+    let timeLeft = 0;
+
+    startBtn.addEventListener('click', () => {
+      infoBar.style.display = 'flex';
+      startBtn.style.display = 'none';
+      exitBtn.style.display = 'inline-block';
+      startLevel();
+    });
+
+    exitBtn.addEventListener('click', () => {
+      exitGame();
+    });
+
+    function exitGame() {
+      clearInterval(timer);
+      board.innerHTML = '';
+      message.innerHTML = `👋 Game exited. <span class="highlight">Final score: ${points} points.</span>`;
+      infoBar.style.display = 'none';
+      startBtn.textContent = "Start Game";
+      startBtn.style.display = 'inline-block';
+      exitBtn.style.display = 'none';
+      level = 1;
+      points = 0;
+      updatePointsDisplay();
+    }
+
+    function startLevel() {
+      board.innerHTML = '';
+      message.textContent = '';
+      matchedCount = 0;
+      lockBoard = false;
+      firstCard = null;
+      secondCard = null;
+      clearInterval(timer);
+
+      if (level > maxLevel) {
+        message.innerHTML = `🏆 You've completed all 20 levels! <span class="highlight">Final score: ${points} points.</span>`;
+        startBtn.textContent = "Restart Game";
+        startBtn.style.display = 'inline-block';
+        exitBtn.style.display = 'none';
+        return;
+      }
+
+      levelDisplay.textContent = `Level: ${level}`;
+      timeLeft = 20 * level;
+      updateTimerDisplay();
+      updatePointsDisplay();
+      startTimer();
+
+      const pairs = level * 2;
+      const totalCards = pairs * 2;
+      const icons = iconSet.slice(0, pairs);
+      const cards = [...icons, ...icons].sort(() => 0.5 - Math.random());
+
+      const cols = Math.min(6, Math.ceil(Math.sqrt(totalCards)));
+      board.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+
+      cards.forEach((icon) => {
+        const card = document.createElement('div');
+        card.classList.add('card');
+        card.dataset.icon = icon;
+        card.innerHTML = '?';
+        board.appendChild(card);
+
+        card.addEventListener('click', () => {
+          if (lockBoard || card.classList.contains('flipped') || card.classList.contains('matched')) return;
+          card.classList.add('flipped');
+          card.innerHTML = card.dataset.icon;
+
+          if (!firstCard) {
+            firstCard = card;
+          } else {
+            secondCard = card;
+            lockBoard = true;
+
+            if (firstCard.dataset.icon === secondCard.dataset.icon) {
+              firstCard.classList.add('matched');
+              secondCard.classList.add('matched');
+              matchedCount += 2;
+              points += 10;
+              updatePointsDisplay();
+              resetTurn();
+
+              if (matchedCount === totalCards) {
+                clearInterval(timer);
+                celebrateWin();
+              }
+            } else {
+              points = Math.max(0, points - 2); // Deduct 2 points on wrong match
+              updatePointsDisplay();
+              setTimeout(() => {
+                firstCard.classList.remove('flipped');
+                secondCard.classList.remove('flipped');
+                firstCard.innerHTML = '?';
+                secondCard.innerHTML = '?';
+                resetTurn();
+              }, 1000);
+            }
+          }
+        });
+      });
+    }
+
+    function resetTurn() {
+      [firstCard, secondCard] = [null, null];
+      lockBoard = false;
+    }
+
+    function startTimer() {
+      timer = setInterval(() => {
+        timeLeft--;
+        updateTimerDisplay();
+        if (timeLeft <= 0) {
+          clearInterval(timer);
+          message.innerHTML = `⏰ Time's up! Game Over at Level ${level}. <span class="highlight">Final score: ${points} points.</span>`;
+          board.innerHTML = '';
+          startBtn.textContent = "Restart Game";
+          startBtn.style.display = 'inline-block';
+          exitBtn.style.display = 'none';
+          updatePointsDisplay();
+        }
+      }, 1000);
+    }
+
+    function updateTimerDisplay() {
+      timerDisplay.textContent = `Time: ${timeLeft}s`;
+    }
+
+    function updatePointsDisplay() {
+      pointsDisplay.textContent = `Points: ${points}`;
+    }
+    function celebrateWin() {
+    points += timeLeft;  
+    updatePointsDisplay();
+    message.innerHTML = `🎉 Level ${level} Complete! <span class="highlight">Final score: ${points} points.</span>`;
+    board.innerHTML = '';
+    setTimeout(() => {
+        level++;
+        startBtn.textContent = "Start Next Level";
+        startBtn.style.display = 'inline-block';
+    }, 2000);
+    }
+  </script>
+</body>
+</html>
